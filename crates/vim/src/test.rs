@@ -205,9 +205,10 @@ async fn test_indent_outdent(cx: &mut gpui::TestAppContext) {
     cx.simulate_keystrokes("< <");
     cx.assert_editor_state("aa\nbˇb\ncc");
 
-    // works in visual mode
+    // works in visual mode (preserves selection)
     cx.simulate_keystrokes("shift-v down >");
-    cx.assert_editor_state("aa\n    bˇb\n    cc");
+    cx.assert_state("aa\n«    bb\n    ccˇ»", Mode::VisualLine);
+    cx.simulate_keystrokes("escape");
 
     // works as operator
     cx.set_state("aa\nbˇb\ncc\n", Mode::Normal);
@@ -236,10 +237,15 @@ async fn test_indent_outdent(cx: &mut gpui::TestAppContext) {
     cx.assert_editor_state("    a\n    b\n    ccˇc\n");
     cx.simulate_keystrokes(".");
     cx.assert_editor_state("        a\n        b\n        ccˇc\n");
-    cx.simulate_keystrokes("v k <");
-    cx.assert_editor_state("        a\n    bˇ\n    ccc\n");
-    cx.simulate_keystrokes(".");
-    cx.assert_editor_state("        a\nbˇ\nccc\n");
+
+    // visual mode preserves selection for multiple indents
+    cx.set_state("aˇa\nbb\ncc\n", Mode::Normal);
+    cx.simulate_keystrokes("v j >");
+    cx.assert_state("    a«a\n    bbˇ»\ncc\n", Mode::Visual);
+    cx.simulate_keystrokes(">");
+    cx.assert_state("        a«a\n        bbˇ»\ncc\n", Mode::Visual);
+    cx.simulate_keystrokes("<");
+    cx.assert_state("    a«a\n    bbˇ»\ncc\n", Mode::Visual);
 }
 
 #[perf]
@@ -1830,9 +1836,9 @@ async fn test_visual_indent_count(cx: &mut gpui::TestAppContext) {
     let mut cx = VimTestContext::new(cx, true).await;
     cx.set_state("ˇhi", Mode::Normal);
     cx.simulate_keystrokes("shift-v 3 >");
-    cx.assert_state("            ˇhi", Mode::Normal);
-    cx.simulate_keystrokes("shift-v 2 <");
-    cx.assert_state("    ˇhi", Mode::Normal);
+    cx.assert_state("«            hiˇ»", Mode::VisualLine);
+    cx.simulate_keystrokes("2 <");
+    cx.assert_state("«    hiˇ»", Mode::VisualLine);
 }
 
 #[perf]

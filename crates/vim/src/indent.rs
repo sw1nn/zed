@@ -1,7 +1,7 @@
 use crate::{Vim, motion::Motion, object::Object, state::Mode};
 use collections::HashMap;
 use editor::SelectionEffects;
-use editor::{Bias, Editor, display_map::ToDisplayPoint};
+use editor::{Bias, Editor, display_map::ToDisplayPoint, movement};
 use gpui::actions;
 use gpui::{Context, Window};
 use language::SelectionGoal;
@@ -33,18 +33,31 @@ pub(crate) fn register(editor: &mut Editor, cx: &mut Context<Vim>) {
         let count = Vim::take_count(cx).unwrap_or(1);
         Vim::take_forced_motion(cx);
         vim.store_visual_marks(window, cx);
+        let preserve_selection = matches!(vim.mode, Mode::Visual | Mode::VisualLine);
+        let is_visual_line = vim.mode == Mode::VisualLine;
         vim.update_editor(cx, |vim, editor, cx| {
             editor.transact(window, cx, |editor, window, cx| {
                 let original_positions = vim.save_selection_starts(editor, cx);
+                let line_mode = editor.selections.line_mode();
                 for _ in 0..count {
                     editor.indent(&Default::default(), window, cx);
                 }
-                if !HelixModeSetting::get_global(cx).0 {
+                if preserve_selection {
+                    editor.selections.set_line_mode(line_mode);
+                    if is_visual_line {
+                        editor.change_selections(Default::default(), window, cx, |s| {
+                            s.move_with(|map, selection| {
+                                selection.start = movement::line_beginning(map, selection.start, false);
+                                selection.end = movement::line_end(map, selection.end, false);
+                            });
+                        });
+                    }
+                } else if !HelixModeSetting::get_global(cx).0 {
                     vim.restore_selection_cursors(editor, window, cx, original_positions);
                 }
             });
         });
-        if vim.mode.is_visual() {
+        if vim.mode == Mode::VisualBlock {
             vim.switch_mode(Mode::Normal, true, window, cx)
         }
     });
@@ -54,18 +67,31 @@ pub(crate) fn register(editor: &mut Editor, cx: &mut Context<Vim>) {
         let count = Vim::take_count(cx).unwrap_or(1);
         Vim::take_forced_motion(cx);
         vim.store_visual_marks(window, cx);
+        let preserve_selection = matches!(vim.mode, Mode::Visual | Mode::VisualLine);
+        let is_visual_line = vim.mode == Mode::VisualLine;
         vim.update_editor(cx, |vim, editor, cx| {
             editor.transact(window, cx, |editor, window, cx| {
                 let original_positions = vim.save_selection_starts(editor, cx);
+                let line_mode = editor.selections.line_mode();
                 for _ in 0..count {
                     editor.outdent(&Default::default(), window, cx);
                 }
-                if !HelixModeSetting::get_global(cx).0 {
+                if preserve_selection {
+                    editor.selections.set_line_mode(line_mode);
+                    if is_visual_line {
+                        editor.change_selections(Default::default(), window, cx, |s| {
+                            s.move_with(|map, selection| {
+                                selection.start = movement::line_beginning(map, selection.start, false);
+                                selection.end = movement::line_end(map, selection.end, false);
+                            });
+                        });
+                    }
+                } else if !HelixModeSetting::get_global(cx).0 {
                     vim.restore_selection_cursors(editor, window, cx, original_positions);
                 }
             });
         });
-        if vim.mode.is_visual() {
+        if vim.mode == Mode::VisualBlock {
             vim.switch_mode(Mode::Normal, true, window, cx)
         }
     });
@@ -75,16 +101,31 @@ pub(crate) fn register(editor: &mut Editor, cx: &mut Context<Vim>) {
         let count = Vim::take_count(cx).unwrap_or(1);
         Vim::take_forced_motion(cx);
         vim.store_visual_marks(window, cx);
+        let preserve_selection = matches!(vim.mode, Mode::Visual | Mode::VisualLine);
+        let is_visual_line = vim.mode == Mode::VisualLine;
         vim.update_editor(cx, |vim, editor, cx| {
             editor.transact(window, cx, |editor, window, cx| {
                 let original_positions = vim.save_selection_starts(editor, cx);
+                let line_mode = editor.selections.line_mode();
                 for _ in 0..count {
                     editor.autoindent(&Default::default(), window, cx);
                 }
-                vim.restore_selection_cursors(editor, window, cx, original_positions);
+                if preserve_selection {
+                    editor.selections.set_line_mode(line_mode);
+                    if is_visual_line {
+                        editor.change_selections(Default::default(), window, cx, |s| {
+                            s.move_with(|map, selection| {
+                                selection.start = movement::line_beginning(map, selection.start, false);
+                                selection.end = movement::line_end(map, selection.end, false);
+                            });
+                        });
+                    }
+                } else {
+                    vim.restore_selection_cursors(editor, window, cx, original_positions);
+                }
             });
         });
-        if vim.mode.is_visual() {
+        if vim.mode == Mode::VisualBlock {
             vim.switch_mode(Mode::Normal, true, window, cx)
         }
     });
